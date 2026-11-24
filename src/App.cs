@@ -62,9 +62,15 @@ class ChatWindow : Window {
   controlsHover=(StackPanel)view.FindName("ControlsHover");composerPanel=(StackPanel)view.FindName("ComposerPanel");composer=(TextBox)view.FindName("Composer");sendButton=(Button)view.FindName("Send");sendLanguage=(Button)view.FindName("SendLanguage");sendStatus=(TextBlock)view.FindName("SendStatus");
   controlsTimer.Interval=TimeSpan.FromSeconds(3);controlsTimer.Tick+=delegate{controlsTimer.Stop();if(!controlsHover.IsMouseOver)FadeControls(false);};
   controlsHover.MouseEnter+=delegate{controlsTimer.Stop();FadeControls(true);};controlsHover.MouseLeave+=delegate{controlsTimer.Stop();controlsTimer.Start();};
-  composer.TextChanged+=delegate{((TextBlock)view.FindName("ComposerHint")).Visibility=composer.Text.Length==0?Visibility.Visible:Visibility.Collapsed;};
-  sendButton.Click+=delegate{BeginSend();};composer.KeyDown+=delegate(object sender,KeyEventArgs e){if(e.Key==Key.Enter){e.Handled=true;if(!e.IsRepeat)BeginSend();}else if(e.Key==Key.Escape&&gameFocus!=IntPtr.Zero){e.Handled=true;ReturnToGame();}};
-  sendLanguage.Click+=delegate{var menu=new ContextMenu();foreach(string lang in new[]{"zh","en"}){string value=lang;var choice=new MenuItem{Header=lang=="zh"?"中文 · 直接发送":"英文 · 自动翻译后发送",IsCheckable=true,IsChecked=sendMode==lang};choice.Click+=delegate{sendMode=value;sendLanguage.Content=value=="zh"?"中文":"英文";SaveSettings();};menu.Items.Add(choice);}menu.PlacementTarget=sendLanguage;menu.IsOpen=true;};
+  sendButton.Click+=delegate{BeginSend();};
+  composer.KeyDown+=delegate(object sender,KeyEventArgs e){
+   if(e.Key==Key.Enter){e.Handled=true;if(!e.IsRepeat)BeginSend();}
+   else if(e.Key==Key.Escape){e.Handled=true;SetComposerVisible(false);ReturnToGame();}
+  };
+  PreviewKeyDown+=delegate(object sender,KeyEventArgs e){
+   if(e.Key==Key.Enter&&!e.IsRepeat&&Keyboard.Modifiers==ModifierKeys.None&&composerPanel.Visibility!=Visibility.Visible&&settingsWindow==null&&visibilityPrompt==null){e.Handled=true;OpenComposerFromGame(IntPtr.Zero);}
+  };
+  sendLanguage.Click+=delegate{ToggleSendLanguage();};
   composer.PreviewMouseLeftButtonDown+=delegate{typing=true;ApplyActivationStyle();Activate();composer.Focus();};
   Deactivated+=delegate{typing=false;ApplyActivationStyle();};
   ((Button)view.FindName("Settings")).Click+=delegate{OpenSettings();};
@@ -84,8 +90,8 @@ class ChatWindow : Window {
    latest.Visibility=following?Visibility.Collapsed:Visibility.Visible;
   };
   view.ContextMenu=new ContextMenu();view.ContextMenuOpening+=delegate{BuildMenu();};
-  LoadSettings();sendLanguage.Content=sendMode=="zh"?"中文":"英文";SetLocked(locked);UpdateBackground();controlsTimer.Start();
-  if(!demo)try{hotkeys=new GameHotkeys(h=>Dispatcher.BeginInvoke(new Action(delegate{OpenComposerFromGame(h);})),state=>Dispatcher.BeginInvoke(new Action(delegate{if(state==0)sendStatus.Text="原生聊天框状态待确认，按 F12 后选择显示或隐藏";})),h=>Dispatcher.BeginInvoke(new Action(delegate{QueueVisibilityPrompt(h);})));hotkeys.Enabled=hotkeysEnabled;if(hotkeysEnabled)sendStatus.Text="F12 确认已开启，按 F12 后选择已隐藏或仍显示";}catch(Exception){sendStatus.Text="快捷键不可用，仍可点击输入框发送";}
+  LoadSettings();sendLanguage.Content=sendMode=="zh"?"中":"英";SetLocked(locked);UpdateBackground();controlsTimer.Start();
+  if(!demo)try{hotkeys=new GameHotkeys(h=>Dispatcher.BeginInvoke(new Action(delegate{OpenComposerFromGame(h);})),state=>{},h=>Dispatcher.BeginInvoke(new Action(delegate{QueueVisibilityPrompt(h);})));hotkeys.Enabled=hotkeysEnabled;}catch(Exception){engineStatus="快捷键不可用";}
   Icon=BitmapFrame.Create(new Uri(System.IO.Path.Combine(root,"app.ico")));InitTray();
   SourceInitialized+=delegate{source=HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);source.AddHook(WindowMessage);ApplyActivationStyle();};
   ContentRendered+=delegate{if(demo)StartDemo();else StartReader();};
@@ -104,29 +110,45 @@ class ChatWindow : Window {
  void VisibilityTick(object sender,EventArgs args){
   visibilityTimer.Stop();if(closing||hotkeys==null||!hotkeys.Enabled)return;
   var prompt=new ChatVisibilityPrompt();visibilityPrompt=prompt;
-  try{prompt.ShowDialog();if(hotkeys!=null){hotkeys.Calibrate(prompt.Choice);sendStatus.Text=prompt.Choice==2?"原生聊天已隐藏 · 回车进入翻译输入框":prompt.Choice==1?"原生聊天仍显示 · 回车使用游戏输入框":"未确认状态 · 回车仍交给游戏";}}
+  try{prompt.ShowDialog();if(hotkeys!=null){hotkeys.Calibrate(prompt.Choice);}}
   finally{visibilityPrompt=null;if(!closing&&confirmationGame!=IntPtr.Zero)SetForegroundWindow(confirmationGame);confirmationGame=IntPtr.Zero;}
  }
  void OpenComposerFromGame(IntPtr h){
-  gameFocus=h;typing=true;Show();WindowState=WindowState.Normal;Topmost=true;ApplyActivationStyle();SetForegroundWindow(new WindowInteropHelper(this).Handle);Activate();composer.Focus();Keyboard.Focus(composer);composer.CaretIndex=composer.Text.Length;
+  gameFocus=h;typing=true;Show();WindowState=WindowState.Normal;Topmost=true;SetComposerVisible(true);ApplyActivationStyle();SetForegroundWindow(new WindowInteropHelper(this).Handle);Activate();composer.Focus();Keyboard.Focus(composer);composer.CaretIndex=composer.Text.Length;
  }
+ void ToggleSendLanguage(){sendMode=sendMode=="zh"?"en":"zh";sendLanguage.Content=sendMode=="zh"?"中":"英";SaveSettings();if(composerPanel.Visibility==Visibility.Visible&&!composer.IsReadOnly){composer.Focus();Keyboard.Focus(composer);}}
+ void SetComposerVisible(bool visible){
+  composerPanel.Visibility=visible?Visibility.Visible:Visibility.Collapsed;
+  if(!visible){if(composer.IsKeyboardFocusWithin)Keyboard.ClearFocus();typing=false;ApplyActivationStyle();}
+  UpdateComposerLayout();
+ }
+ void UpdateComposerLayout(){
+  bool stick=following;double offset=scroll.VerticalOffset;updating=true;
+  double bottom=composerPanel.Visibility==Visibility.Visible?(sendStatus.Visibility==Visibility.Visible?83:62):14;
+  scroll.Margin=new Thickness(17,39,9,bottom);latest.Margin=new Thickness(0,0,20,bottom+2);scroll.UpdateLayout();
+  if(stick)ToLatest();else{internalScroll=true;scroll.ScrollToVerticalOffset(offset);internalScroll=false;}
+  following=stick;updating=false;
+ }
+ void ShowSendStatus(string text){sendStatus.Text=text;sendStatus.Visibility=string.IsNullOrEmpty(text)?Visibility.Collapsed:Visibility.Visible;UpdateComposerLayout();}
  void ReturnToGame(){if(gameFocus==IntPtr.Zero)return;var h=gameFocus;gameFocus=IntPtr.Zero;typing=false;ApplyActivationStyle();SetForegroundWindow(h);}
  void FadeControls(bool visible){controlsHover.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(visible?1:0,TimeSpan.FromMilliseconds(visible?160:280)));}
  void SetShowOriginal(bool value){showOriginal=value;foreach(var row in rows.Values)row.ShowOriginal(value);if(following)Dispatcher.BeginInvoke(new Action(ToLatest),DispatcherPriority.Loaded);}
  void BeginSend(){
   if(pendingSend.Length>0)return;string text=composer.Text.Trim();if(text.Length==0)return;
-  if(demo){sendStatus.Text="演示模式：未向游戏发送消息";return;}
-  if(groupId.Length==0||!status.StartsWith("已连接 · ")||(DateTime.UtcNow-lastWrite).TotalSeconds>60){sendStatus.Text="等待连接到当前服务器频道后再发送";return;}
+  if(demo){ShowSendStatus("演示模式");return;}
+  if(groupId.Length==0||!status.StartsWith("已连接 · ")||(DateTime.UtcNow-lastWrite).TotalSeconds>60){ShowSendStatus("频道未连接");return;}
   try{
    string id=Guid.NewGuid().ToString("N");var request=new Dictionary<string,object>{{"id",id},{"group_id",groupId},{"text",text},{"language",sendMode},{"created_at",(DateTime.UtcNow-new DateTime(1970,1,1)).TotalSeconds}};
-   string path=DataPath("send-request.json"),temp=path+".tmp";if(File.Exists(path)){sendStatus.Text="上一条请求尚未处理，请稍候";return;}
-   File.WriteAllText(temp,json.Serialize(request),new UTF8Encoding(false));File.Move(temp,path);pendingSend=id;sendButton.IsEnabled=false;composer.IsReadOnly=true;sendLanguage.IsEnabled=false;sendStatus.Text=sendMode=="en"?"正在翻译并发送…":"正在发送…";ReturnToGame();
-  }catch(IOException){sendStatus.Text="无法提交发送请求，原文已保留";}
+   string path=DataPath("send-request.json"),temp=path+".tmp";if(File.Exists(path)){ShowSendStatus("上一条尚未处理");return;}
+   File.WriteAllText(temp,json.Serialize(request),new UTF8Encoding(false));File.Move(temp,path);pendingSend=id;sendButton.IsEnabled=false;composer.IsReadOnly=true;sendLanguage.IsEnabled=false;ShowSendStatus("发送中…");ReturnToGame();
+  }catch(IOException){ShowSendStatus("提交失败");}
  }
  void UpdateSendResult(){
   if(pendingSend.Length==0)return;
   try{var result=json.Deserialize<Dictionary<string,object>>(File.ReadAllText(DataPath("send-result.json"),Encoding.UTF8));if(Str(result,"id")!=pendingSend)return;
-   sendStatus.Text=Str(result,"message");sendStatus.ToolTip=Str(result,"sent_text");if(Bool(result,"ok"))composer.Clear();
+   sendStatus.ToolTip=null;
+   if(Bool(result,"ok")){composer.Clear();ShowSendStatus("");SetComposerVisible(false);}
+   else{SetComposerVisible(true);ShowSendStatus(Str(result,"message"));}
    pendingSend="";sendButton.IsEnabled=true;composer.IsReadOnly=false;sendLanguage.IsEnabled=true;
   }catch(IOException){}catch(ArgumentException){}
  }
@@ -324,6 +346,15 @@ class ChatWindow : Window {
   timer.Stop();var checks=new Dictionary<string,object>();
   checks["main_channel_picker_removed"]=view.FindName("Channels")==null;checks["lock_is_icon"]=lockButton.Content is System.Windows.Shapes.Path;checks["settings_button"]=view.FindName("Settings")!=null;
   checks["messages"]=rows.Count;checks["transparent"]=AllowsTransparency;checks["background_alpha"]=(int)((SolidColorBrush)backdrop.Background).Color.A;checks["borderless"]=WindowStyle==WindowStyle.None;checks["no_outline"]=backdrop.BorderThickness.Left==0;checks["composer_present"]=composer!=null;checks["hotkeys_visible_pass_through"]=!GameHotkeys.ShouldIntercept(true,1,true,false);checks["hotkeys_unknown_pass_through"]=!GameHotkeys.ShouldIntercept(true,0,true,false);checks["hotkeys_other_apps_pass_through"]=!GameHotkeys.ShouldIntercept(true,2,false,false);checks["hotkeys_hidden_enter"]=GameHotkeys.ShouldIntercept(true,2,true,false);
+  checks["composer_starts_hidden"]=composerPanel.Visibility==Visibility.Collapsed&&scroll.Margin.Bottom==14;
+  OpenComposerFromGame(IntPtr.Zero);checks["enter_opens_composer"]=composerPanel.Visibility==Visibility.Visible&&composer.IsKeyboardFocused;
+  string modeBefore=sendMode;ToggleSendLanguage();checks["language_one_click_switch"]=sendMode!=modeBefore&&(Convert.ToString(sendLanguage.Content)=="中"||Convert.ToString(sendLanguage.Content)=="英")&&sendLanguage.ContextMenu==null;ToggleSendLanguage();
+  composer.Text="未发送的测试草稿";SetComposerVisible(false);checks["cancel_preserves_draft"]=composer.Text=="未发送的测试草稿"&&composerPanel.Visibility==Visibility.Collapsed;
+  SetComposerVisible(true);pendingSend="__ui_failed_send__";File.WriteAllText(DataPath("send-result.json"),json.Serialize(new Dictionary<string,object>{{"id",pendingSend},{"ok",false},{"message","测试失败"}}),Encoding.UTF8);UpdateSendResult();
+  checks["send_failure_keeps_draft_visible"]=composer.Text=="未发送的测试草稿"&&composerPanel.Visibility==Visibility.Visible;
+  pendingSend="__ui_success_send__";File.WriteAllText(DataPath("send-result.json"),json.Serialize(new Dictionary<string,object>{{"id",pendingSend},{"ok",true},{"message","已发送"}}),Encoding.UTF8);UpdateSendResult();
+  checks["send_success_hides_and_clears"]=composer.Text.Length==0&&composerPanel.Visibility==Visibility.Collapsed&&scroll.Margin.Bottom==14;
+  TryDelete(DataPath("send-result.json"));
   double w=Width,h=Height,l=Left,t=Top;bool wasLocked=locked;SetLocked(true);ResizeFrom("BR",30,20);
   checks["locked_topmost"]=Topmost;checks["locked_resize_blocked"]=Width==w&&Height==h;checks["locked_grips_disabled"]=!resizeGrips[0].IsHitTestVisible;
   SetLocked(false);ResizeFrom("BR",20,10);checks["unlocked_resizes"]=Width==w+20&&Height==h+10;
