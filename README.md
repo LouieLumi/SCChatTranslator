@@ -6,6 +6,8 @@ Windows 独立聊天翻译浮窗。读取当前角色已加入的公开服务器
 
 ## 下载与使用
 
+[下载离线配图使用说明（HTML）](https://github.com/LouieLumi/SCChatTranslator/releases/latest/download/usage.html)，双击可用浏览器查看，图片已内嵌。
+
 从 [Releases](https://github.com/LouieLumi/SCChatTranslator/releases/latest) 下载 `SCChatTranslator.exe`，双击运行。支持 Windows 10/11 x64；首次启动解压内置运行环境和 Argos 英译中模型，之后直接启动，无需安装 Python。
 
 1. 用 RSI Launcher 正常登录并进入服务器。
@@ -15,6 +17,8 @@ Windows 独立聊天翻译浮窗。读取当前角色已加入的公开服务器
 5. 透明度、频道、翻译引擎都在设置中。建议游戏使用无边框窗口模式；独占全屏不保证普通桌面浮窗可见。
 6. 设置中的“显示原文”可关闭外语原文；中文消息仍直接显示。右上角三个按钮在移入时淡入，离开 3 秒后渐隐。
 7. 点击 `×` 隐藏到 Windows 通知区域，读取继续运行。双击托盘图标显示窗口，右键可打开设置、锁定/解锁或**退出**。图标也可能在 Windows 的 `^` 隐藏图标列表中。
+
+消息区滚动条默认隐藏，收到新消息自动滚动时也不显示。使用鼠标滚轮查看聊天时淡入，最后一次滚轮操作结束 3 秒后淡出。向上查看历史后，可点击“↓ 最新”回到最新消息。
 
 运行 `SCChatTranslator.exe --demo` 可打开独立演示窗口，使用内置示例聊天，不读取游戏会话。演示中的示例译文经过人工整理，不代表各模型逐字输出。
 

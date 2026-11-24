@@ -26,6 +26,7 @@ class ChatWindow : Window {
  SettingsWindow settingsWindow;ChildJob childJob;GameHotkeys hotkeys;ChatVisibilityPrompt visibilityPrompt;readonly DispatcherTimer visibilityTimer=new DispatcherTimer();IntPtr confirmationGame;bool hotkeysEnabled;IntPtr gameFocus;
  readonly JavaScriptSerializer json=new JavaScriptSerializer();
  readonly DispatcherTimer timer=new DispatcherTimer();
+ readonly DispatcherTimer scrollBarTimer=new DispatcherTimer();
  readonly Dictionary<string,ChatRow> rows=new Dictionary<string,ChatRow>();
  readonly List<Thumb> resizeGrips=new List<Thumb>();
  readonly bool smoke,demo;
@@ -84,7 +85,8 @@ class ChatWindow : Window {
    grip.DragDelta+=delegate(object sender,DragDeltaEventArgs e){ResizeFrom(Convert.ToString(((Thumb)sender).Tag),e.HorizontalChange,e.VerticalChange);};
    grip.DragCompleted+=delegate{SaveSettings();};
   }
-  scroll.PreviewMouseWheel+=delegate(object s,MouseWheelEventArgs e){if(e.Delta>0)following=false;};
+  scrollBarTimer.Interval=TimeSpan.FromSeconds(3);scrollBarTimer.Tick+=delegate{scrollBarTimer.Stop();FadeScrollBar(false);};
+  scroll.PreviewMouseWheel+=delegate(object s,MouseWheelEventArgs e){if(e.Delta==0)return;if(e.Delta>0)following=false;FadeScrollBar(true);scrollBarTimer.Stop();scrollBarTimer.Start();};
   scroll.ScrollChanged+=delegate(object s,ScrollChangedEventArgs e){
    if(!updating&&!internalScroll&&e.ExtentHeightChange==0&&e.ViewportHeightChange==0&&Math.Abs(e.VerticalChange)>0.01){following=scroll.ScrollableHeight-scroll.VerticalOffset<4;}
    latest.Visibility=following?Visibility.Collapsed:Visibility.Visible;
@@ -97,7 +99,7 @@ class ChatWindow : Window {
   ContentRendered+=delegate{if(demo)StartDemo();else StartReader();};
   Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e){
    if(!exiting&&!smoke){e.Cancel=true;HideToTray();return;}
-   controlsTimer.Stop();visibilityTimer.Stop();if(visibilityPrompt!=null)visibilityPrompt.Close();if(hotkeys!=null)hotkeys.Dispose();StopReader();SaveSettings();if(tray!=null){tray.Visible=false;tray.Dispose();tray=null;}
+   controlsTimer.Stop();scrollBarTimer.Stop();visibilityTimer.Stop();if(visibilityPrompt!=null)visibilityPrompt.Close();if(hotkeys!=null)hotkeys.Dispose();StopReader();SaveSettings();if(tray!=null){tray.Visible=false;tray.Dispose();tray=null;}
    if(source!=null)source.RemoveHook(WindowMessage);
   };
   StateChanged+=delegate{if(WindowState==WindowState.Minimized)HideToTray();};
@@ -132,6 +134,10 @@ class ChatWindow : Window {
  void ShowSendStatus(string text){sendStatus.Text=text;sendStatus.Visibility=string.IsNullOrEmpty(text)?Visibility.Collapsed:Visibility.Visible;UpdateComposerLayout();}
  void ReturnToGame(){if(gameFocus==IntPtr.Zero)return;var h=gameFocus;gameFocus=IntPtr.Zero;typing=false;ApplyActivationStyle();SetForegroundWindow(h);}
  void FadeControls(bool visible){controlsHover.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(visible?1:0,TimeSpan.FromMilliseconds(visible?160:280)));}
+ void FadeScrollBar(bool visible){
+  scroll.ApplyTemplate();var bar=scroll.Template.FindName("PART_VerticalScrollBar",scroll) as ScrollBar;if(bar==null)return;
+  bar.IsHitTestVisible=visible;bar.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(visible?1:0,TimeSpan.FromMilliseconds(visible?100:180)));
+ }
  void SetShowOriginal(bool value){showOriginal=value;foreach(var row in rows.Values)row.ShowOriginal(value);if(following)Dispatcher.BeginInvoke(new Action(ToLatest),DispatcherPriority.Loaded);}
  void BeginSend(){
   if(pendingSend.Length>0)return;string text=composer.Text.Trim();
@@ -169,7 +175,7 @@ class ChatWindow : Window {
   menu.Items.Add("退出",null,delegate{Dispatcher.BeginInvoke(new Action(ExitApplication));});
   tray.ContextMenuStrip=menu;tray.DoubleClick+=delegate{Dispatcher.BeginInvoke(new Action(ShowOverlay));};tray.Visible=true;
  }
- void HideToTray(){if(settingsWindow!=null)settingsWindow.Close();SetComposerVisible(false);SaveSettings();Hide();}
+ void HideToTray(){if(settingsWindow!=null)settingsWindow.Close();scrollBarTimer.Stop();FadeScrollBar(false);SetComposerVisible(false);SaveSettings();Hide();}
  void ShowOverlay(){Show();WindowState=WindowState.Normal;Topmost=true;if(!locked){ApplyActivationStyle();Activate();}}
  void ExitApplication(){exiting=true;Close();}
  IntPtr WindowMessage(IntPtr hwnd,int msg,IntPtr wParam,IntPtr lParam,ref bool handled){
