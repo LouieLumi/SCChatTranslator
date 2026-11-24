@@ -1,0 +1,68 @@
+{
+  "grpcio-1.85.4-cp312-cp312-win_amd64.whl": {
+    "bytes": 5607344,
+    "sha256": "cb33c14aed353483b053e85614befd7862db0db27e32c54666436827a45eaf74",
+    "url": "https://files.pythonhosted.org/packages/34/5d/24d7231068da599af52bb1cf8dc7cc6695f337c26340ee74b8918b68cf8a/grpcio-1.85.4-cp312-cp312-win_amd64.whl",
+    "kind": "wheel"
+  },
+  "numpy-2.5.5-cp312-cp312-win_amd64.whl": {
+    "bytes": 12580189,
+    "sha256": "919eb420662b0b4ba34889df503f3d5329775b0c1d5f7e5f5af4fba8315b1e30",
+    "url": "https://files.pythonhosted.org/packages/d1/71/b1ce51834c21020d189332979d38ba7350eb6cd7ca8c8ec424a663b0ca6f/numpy-2.5.5-cp312-cp312-win_amd64.whl",
+    "kind": "wheel"
+  },
+  "ctranslate2-4.9.1-cp312-cp312-win_amd64.whl": {
+    "bytes": 23105665,
+    "sha256": "627aeb62a3a5a27266f9ebae820189c12eea8db713c8c202ea331c9ec47effcf",
+    "url": "https://files.pythonhosted.org/packages/b0/d5/2c4ce0e6fc0203d64009aaa4b58ca6da877597d42d1c16054082735bba1f/ctranslate2-4.9.1-cp312-cp312-win_amd64.whl",
+    "kind": "wheel"
+  },
+  "sentencepiece-0.2.3-cp312-cp312-win_amd64.whl": {
+    "bytes": 1655435,
+    "sha256": "972af959c63cde446210a8935524806820c253afa4b0a97d83c206b857085f44",
+    "url": "https://files.pythonhosted.org/packages/b5/78/47be22c27976afed9f88cb9bcdb225abb37991c1ff442a9234e64e7a3d23/sentencepiece-0.2.3-cp312-cp312-win_amd64.whl",
+    "kind": "wheel"
+  },
+  "pyyaml-6.0.4-cp312-cp312-win_amd64.whl": {
+    "bytes": 154452,
+    "sha256": "131d11bd9b60d705a6388366d77ed67850995a4d2be85fe149785a257c17e531",
+    "url": "https://files.pythonhosted.org/packages/a3/95/307a6ceafbad9a08300743d19329c31726224e583e05c4fe5358522ba283/pyyaml-6.0.4-cp312-cp312-win_amd64.whl",
+    "kind": "wheel"
+  },
+  "translate-en_zh-1_9.argosmodel": {
+    "bytes": 70743021,
+    "sha256": "433e7c4f034d87fbe2353161e05f18646d7999452f801a4e1f0378522b9850ab",
+    "url": "https://data.argosopentech.com/argospm/v1/translate-en_zh-1_9.argosmodel",
+    "kind": "model"
+  },
+  "setuptools-84.2.1-py3-none-any.whl": {
+    "bytes": 876263,
+    "sha256": "ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2",
+    "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
+    "kind": "wheel"
+  },
+  "typing_extensions-4.16.0-py3-none-any.whl": {
+    "bytes": 45571,
+    "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+    "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+    "kind": "wheel"
+  },
+  "python-3.12.10-embed-amd64.zip": {
+    "bytes": 11133606,
+    "sha256": "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3",
+    "url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip",
+    "kind": "runtime"
+  },
+  "certifi-2026.11.20-py3-none-any.whl": {
+    "sha256": "7422df25243767b9877031a2248cb14d09ddac9beee846f4cef3d5c9191d488f",
+    "url": "https://files.pythonhosted.org/packages/6d/39/5eec3296860b94ac20bb8ed807725b88f6adfab3f343df592afd975f5f86/certifi-2026.11.20-py3-none-any.whl",
+    "bytes": 127913,
+    "kind": "wheel"
+  },
+  "translate-zh_en-1_9.argosmodel": {
+    "url": "https://data.argosopentech.com/argospm/v1/translate-zh_en-1_9.argosmodel",
+    "bytes": 74481402,
+    "sha256": "62e7af5a3a48b530e47b7b3e5c78c2de79073ecd815750d2bf3ab35b4a67da2d",
+    "kind": "model"
+  }
+}

@@ -1,0 +1,13 @@
+星际公民中英术语库
+
+来源：星际公民中文百科汉化项目（ParaTranz 8340）公开术语表。
+作者与署名：星际公民中文百科汉化组及该公开术语表的全体贡献者。
+原始词库：https://paratranz.cn/projects/8340/terms
+汉化组说明：https://support.citizenwiki.cn/d/344-zhi-yin-gong-gong-ban-zhu-yu-biao-bang-zhu-wen-dang
+数据许可证：Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+许可链接：https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+此词库快照于 2026-11-24 获取。已去除空项、重复项、非中英项和过长字段；保留英文术语、中文译名、词形及原记录 ID；未收录贡献者账号信息。
+工具另补充少量聊天常见拼写别名、完整词边界匹配和歧义过滤，不代表原汉化组对本工具的认可。
+修改后的术语数据继续按 CC BY-NC-SA 4.0 提供：署名、非商业性使用、相同方式共享。
+Star Citizen 及游戏专有名称属于其各自权利人；本程序为独立的非官方工具。
