@@ -53,7 +53,7 @@ class ChatWindow : Window {
  public ChatWindow(bool test,bool demonstration){
   smoke=test;demo=demonstration;Title="星际公民聊天翻译";Width=620;Height=540;MinWidth=320;MinHeight=200;
   WindowStyle=WindowStyle.None;AllowsTransparency=true;Background=Brushes.Transparent;ResizeMode=ResizeMode.NoResize;
-  FontFamily=new FontFamily("Microsoft YaHei UI");Foreground=Brushes.White;ShowActivated=!test;ShowInTaskbar=false;Topmost=true;
+  FontFamily=new FontFamily("Microsoft YaHei UI");Foreground=Brushes.White;ShowActivated=!test;ShowInTaskbar=false;Topmost=true;Focusable=true;
   WindowStartupLocation=WindowStartupLocation.Manual;Left=90;Top=100;
   Directory.CreateDirectory(System.IO.Path.Combine(home,"data"));json.MaxJsonLength=4*1024*1024;
   view=(Grid)XamlReader.Parse(File.ReadAllText(System.IO.Path.Combine(root,"Overlay.xaml"),Encoding.UTF8));Content=view;
@@ -72,7 +72,7 @@ class ChatWindow : Window {
   };
   sendLanguage.Click+=delegate{ToggleSendLanguage();};
   composer.PreviewMouseLeftButtonDown+=delegate{typing=true;ApplyActivationStyle();Activate();composer.Focus();};
-  Deactivated+=delegate{typing=false;ApplyActivationStyle();};
+  Deactivated+=delegate{SetComposerVisible(false);};
   ((Button)view.FindName("Settings")).Click+=delegate{OpenSettings();};
   move=(Thumb)view.FindName("MoveGrip");resizeMark=(System.Windows.Shapes.Path)view.FindName("ResizeMark");
   ((Button)view.FindName("Close")).Click+=delegate{HideToTray();};lockButton.Click+=delegate{SetLocked(!locked);SaveSettings();};
@@ -119,7 +119,7 @@ class ChatWindow : Window {
  void ToggleSendLanguage(){sendMode=sendMode=="zh"?"en":"zh";sendLanguage.Content=sendMode=="zh"?"中":"英";SaveSettings();if(composerPanel.Visibility==Visibility.Visible&&!composer.IsReadOnly){composer.Focus();Keyboard.Focus(composer);}}
  void SetComposerVisible(bool visible){
   composerPanel.Visibility=visible?Visibility.Visible:Visibility.Collapsed;
-  if(!visible){if(composer.IsKeyboardFocusWithin)Keyboard.ClearFocus();typing=false;ApplyActivationStyle();}
+  if(!visible){if(composer.IsKeyboardFocusWithin)Keyboard.ClearFocus();if(IsActive)Keyboard.Focus(this);typing=false;ApplyActivationStyle();}
   UpdateComposerLayout();
  }
  void UpdateComposerLayout(){
@@ -134,7 +134,8 @@ class ChatWindow : Window {
  void FadeControls(bool visible){controlsHover.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(visible?1:0,TimeSpan.FromMilliseconds(visible?160:280)));}
  void SetShowOriginal(bool value){showOriginal=value;foreach(var row in rows.Values)row.ShowOriginal(value);if(following)Dispatcher.BeginInvoke(new Action(ToLatest),DispatcherPriority.Loaded);}
  void BeginSend(){
-  if(pendingSend.Length>0)return;string text=composer.Text.Trim();if(text.Length==0)return;
+  if(pendingSend.Length>0)return;string text=composer.Text.Trim();
+  if(text.Length==0){composer.Clear();ShowSendStatus("");SetComposerVisible(false);ReturnToGame();return;}
   if(demo){ShowSendStatus("演示模式");return;}
   if(groupId.Length==0||!status.StartsWith("已连接 · ")||(DateTime.UtcNow-lastWrite).TotalSeconds>60){ShowSendStatus("频道未连接");return;}
   try{
@@ -168,7 +169,7 @@ class ChatWindow : Window {
   menu.Items.Add("退出",null,delegate{Dispatcher.BeginInvoke(new Action(ExitApplication));});
   tray.ContextMenuStrip=menu;tray.DoubleClick+=delegate{Dispatcher.BeginInvoke(new Action(ShowOverlay));};tray.Visible=true;
  }
- void HideToTray(){if(settingsWindow!=null)settingsWindow.Close();SaveSettings();Hide();}
+ void HideToTray(){if(settingsWindow!=null)settingsWindow.Close();SetComposerVisible(false);SaveSettings();Hide();}
  void ShowOverlay(){Show();WindowState=WindowState.Normal;Topmost=true;if(!locked){ApplyActivationStyle();Activate();}}
  void ExitApplication(){exiting=true;Close();}
  IntPtr WindowMessage(IntPtr hwnd,int msg,IntPtr wParam,IntPtr lParam,ref bool handled){
