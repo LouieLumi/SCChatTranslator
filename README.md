@@ -4,6 +4,15 @@
 
 **[下载最新版 EXE](https://github.com/LouieLumi/SCChatTranslator/releases/latest/download/SCChatTranslator.exe)** · [版本与校验文件](https://github.com/LouieLumi/SCChatTranslator/releases) · [离线配图说明](https://github.com/LouieLumi/SCChatTranslator/releases/latest/download/usage.html)
 
+## 免责声明
+
+本项目是独立开发的非官方工具，与 Cloud Imperium Games（CIG）、Roberts Space Industries（RSI）无隶属或合作关系，不代表官方立场，也未获得官方认可或支持。
+
+- **使用风险：** 使用前请自行了解并遵守游戏服务条款及第三方软件相关政策。本项目不保证使用本工具不会触发风控、功能限制、账号暂停或封禁；是否使用及相关风险由使用者自行判断和承担。
+- **责任限制：** 在适用法律允许的范围内，开发者及贡献者不对因使用或无法使用本工具产生的账号限制、暂停或封禁、数据丢失及其他损失承担责任，亦不提供解封或损失赔偿承诺。
+- **账号安全：** 请妥善保管游戏登录文件、会话令牌、API 密钥及个人配置，不要公开上传或向不可信第三方提供这些信息；自定义翻译 API 应使用可信服务。
+- **软件保证：** 软件按“现状”提供，不对持续可用性、兼容性、翻译准确性或账号安全作出保证。游戏更新、服务接口或政策变化可能导致功能失效。
+
 ## 程序介绍
 
 ![聊天翻译浮窗](docs/overlay.png)
