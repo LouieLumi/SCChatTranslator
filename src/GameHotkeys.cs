@@ -2,6 +2,38 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
+// Own the foreground only while composing. Keep native keyboard delivery so IMEs,
+// dead keys, clipboard shortcuts and key-up state continue to work normally.
+// This does not inject code into the game or disable system escape shortcuts.
+sealed class ComposerKeyboard : IDisposable {
+ IntPtr owner;bool locked;
+ [DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")]static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")]static extern IntPtr SetFocus(IntPtr h);
+ [DllImport("user32.dll")]static extern bool LockSetForegroundWindow(uint code);
+ [DllImport("user32.dll")]static extern uint GetWindowThreadProcessId(IntPtr h,out uint process);
+ [DllImport("kernel32.dll")]static extern uint GetCurrentThreadId();
+ [DllImport("user32.dll")]static extern bool AttachThreadInput(uint from,uint to,bool attach);
+ public bool Active {get{return owner!=IntPtr.Zero&&GetForegroundWindow()==owner;}}
+ public bool Acquire(IntPtr window){
+  Release();if(window==IntPtr.Zero)return false;
+  if(GetForegroundWindow()!=window){
+   SetForegroundWindow(window);
+   if(GetForegroundWindow()!=window){
+    uint ignored;uint other=GetWindowThreadProcessId(GetForegroundWindow(),out ignored),current=GetCurrentThreadId();
+    bool attached=other!=0&&other!=current&&AttachThreadInput(current,other,true);
+    try{SetForegroundWindow(window);}finally{if(attached)AttachThreadInput(current,other,false);}
+   }
+  }
+  if(GetForegroundWindow()!=window)return false;
+  SetFocus(window);
+  owner=window;locked=LockSetForegroundWindow(1);return true;
+ }
+ public void Refresh(){if(Active)locked=LockSetForegroundWindow(1)||locked;}
+ public void Release(){if(locked)LockSetForegroundWindow(2);locked=false;owner=IntPtr.Zero;}
+ public void Dispose(){Release();}
+}
+
 // Observes OS keyboard events; does not inject into or inspect the game process.
 // Native chat visibility is NOT exposed by the chat service: each F12 requires the user to confirm visibility.
 sealed class GameHotkeys:IDisposable {

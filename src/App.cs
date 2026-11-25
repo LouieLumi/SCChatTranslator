@@ -24,6 +24,7 @@ class ChatWindow : Window {
  readonly string root=AppDomain.CurrentDomain.BaseDirectory;
  readonly string home=Environment.GetEnvironmentVariable("SCCHAT_HOME")??AppDomain.CurrentDomain.BaseDirectory;
  SettingsWindow settingsWindow;ChildJob childJob;GameHotkeys hotkeys;ChatVisibilityPrompt visibilityPrompt;readonly DispatcherTimer visibilityTimer=new DispatcherTimer();IntPtr confirmationGame;bool hotkeysEnabled;IntPtr gameFocus;
+ readonly ComposerKeyboard composerKeyboard=new ComposerKeyboard();bool returningFocus,imeComposing;Key inputEventKey=Key.None,returnReleaseKey=Key.None;
  readonly JavaScriptSerializer json=new JavaScriptSerializer();
  readonly DispatcherTimer timer=new DispatcherTimer();
  readonly DispatcherTimer scrollBarTimer=new DispatcherTimer();
@@ -64,16 +65,28 @@ class ChatWindow : Window {
   controlsTimer.Interval=TimeSpan.FromSeconds(3);controlsTimer.Tick+=delegate{controlsTimer.Stop();if(!controlsHover.IsMouseOver)FadeControls(false);};
   controlsHover.MouseEnter+=delegate{controlsTimer.Stop();FadeControls(true);};controlsHover.MouseLeave+=delegate{controlsTimer.Stop();controlsTimer.Start();};
   sendButton.Click+=delegate{BeginSend();};
-  composer.KeyDown+=delegate(object sender,KeyEventArgs e){
-   if(e.Key==Key.Enter){e.Handled=true;if(!e.IsRepeat)BeginSend();}
-   else if(e.Key==Key.Escape){e.Handled=true;SetComposerVisible(false);ReturnToGame();}
+  KeyboardNavigation.SetTabNavigation(composer,KeyboardNavigationMode.None);
+  KeyboardNavigation.SetControlTabNavigation(composer,KeyboardNavigationMode.None);
+  TextCompositionManager.AddPreviewTextInputStartHandler(composer,delegate{imeComposing=true;});
+  TextCompositionManager.AddPreviewTextInputUpdateHandler(composer,delegate{imeComposing=true;});
+  TextCompositionManager.AddPreviewTextInputHandler(composer,delegate{imeComposing=false;});
+  composer.PreviewKeyDown+=delegate(object sender,KeyEventArgs e){
+   // Let the IME consume Enter/Escape/Tab for candidate selection first.
+   if(imeComposing||e.Key==Key.ImeProcessed||e.Key==Key.DeadCharProcessed)return;
+   if(e.Key==Key.Enter){e.Handled=true;if(!e.IsRepeat){inputEventKey=Key.Enter;try{BeginSend();}finally{inputEventKey=Key.None;}}}
+   else if(e.Key==Key.Escape){e.Handled=true;inputEventKey=Key.Escape;try{CloseComposerAndReturn();}finally{inputEventKey=Key.None;}}
+   else if(e.Key==Key.Tab||(e.Key>=Key.F1&&e.Key<=Key.F24)){e.Handled=true;}
   };
   PreviewKeyDown+=delegate(object sender,KeyEventArgs e){
+   if(returningFocus){e.Handled=true;return;}
    if(e.Key==Key.Enter&&!e.IsRepeat&&Keyboard.Modifiers==ModifierKeys.None&&composerPanel.Visibility!=Visibility.Visible&&settingsWindow==null&&visibilityPrompt==null){e.Handled=true;OpenComposerFromGame(IntPtr.Zero);}
   };
+  PreviewKeyUp+=delegate(object sender,KeyEventArgs e){
+   if(returningFocus&&e.Key==returnReleaseKey){e.Handled=true;returnReleaseKey=Key.None;Dispatcher.BeginInvoke(new Action(CompleteFocusReturn),DispatcherPriority.Input);}
+  };
   sendLanguage.Click+=delegate{ToggleSendLanguage();};
-  composer.PreviewMouseLeftButtonDown+=delegate{typing=true;ApplyActivationStyle();Activate();composer.Focus();};
-  Deactivated+=delegate{SetComposerVisible(false);};
+  composer.PreviewMouseLeftButtonDown+=delegate{FocusComposer();};
+  Deactivated+=delegate{CancelFocusReturn();SetComposerVisible(false);gameFocus=IntPtr.Zero;};
   ((Button)view.FindName("Settings")).Click+=delegate{OpenSettings();};
   move=(Thumb)view.FindName("MoveGrip");resizeMark=(System.Windows.Shapes.Path)view.FindName("ResizeMark");
   ((Button)view.FindName("Close")).Click+=delegate{HideToTray();};lockButton.Click+=delegate{SetLocked(!locked);SaveSettings();};
@@ -93,13 +106,13 @@ class ChatWindow : Window {
   };
   view.ContextMenu=new ContextMenu();view.ContextMenuOpening+=delegate{BuildMenu();};
   LoadSettings();sendLanguage.Content=sendMode=="zh"?"中":"英";SetLocked(locked);UpdateBackground();controlsTimer.Start();
-  if(!demo)try{hotkeys=new GameHotkeys(h=>Dispatcher.BeginInvoke(new Action(delegate{OpenComposerFromGame(h);})),state=>{},h=>Dispatcher.BeginInvoke(new Action(delegate{QueueVisibilityPrompt(h);})));hotkeys.Enabled=hotkeysEnabled;}catch(Exception){engineStatus="快捷键不可用";}
+  if(!demo)try{hotkeys=new GameHotkeys(h=>Dispatcher.BeginInvoke(new Action(delegate{OpenComposerFromGame(h);}),DispatcherPriority.Send),state=>{},h=>Dispatcher.BeginInvoke(new Action(delegate{QueueVisibilityPrompt(h);})));hotkeys.Enabled=hotkeysEnabled;}catch(Exception){engineStatus="快捷键不可用";}
   Icon=BitmapFrame.Create(new Uri(System.IO.Path.Combine(root,"app.ico")));InitTray();
   SourceInitialized+=delegate{source=HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);source.AddHook(WindowMessage);ApplyActivationStyle();};
   ContentRendered+=delegate{if(demo)StartDemo();else StartReader();};
   Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e){
    if(!exiting&&!smoke){e.Cancel=true;HideToTray();return;}
-   controlsTimer.Stop();scrollBarTimer.Stop();visibilityTimer.Stop();if(visibilityPrompt!=null)visibilityPrompt.Close();if(hotkeys!=null)hotkeys.Dispose();StopReader();SaveSettings();if(tray!=null){tray.Visible=false;tray.Dispose();tray=null;}
+   CancelFocusReturn();composerKeyboard.Dispose();controlsTimer.Stop();scrollBarTimer.Stop();visibilityTimer.Stop();if(visibilityPrompt!=null)visibilityPrompt.Close();if(hotkeys!=null)hotkeys.Dispose();StopReader();SaveSettings();if(tray!=null){tray.Visible=false;tray.Dispose();tray=null;}
    if(source!=null)source.RemoveHook(WindowMessage);
   };
   StateChanged+=delegate{if(WindowState==WindowState.Minimized)HideToTray();};
@@ -116,12 +129,19 @@ class ChatWindow : Window {
   finally{visibilityPrompt=null;if(!closing&&confirmationGame!=IntPtr.Zero)SetForegroundWindow(confirmationGame);confirmationGame=IntPtr.Zero;}
  }
  void OpenComposerFromGame(IntPtr h){
-  gameFocus=h;typing=true;Show();WindowState=WindowState.Normal;Topmost=true;SetComposerVisible(true);ApplyActivationStyle();SetForegroundWindow(new WindowInteropHelper(this).Handle);Activate();composer.Focus();Keyboard.Focus(composer);composer.CaretIndex=composer.Text.Length;
+  // A queued hotkey must not steal focus after the user has switched applications.
+  if(h!=IntPtr.Zero&&ComposerKeyboard.GetForegroundWindow()!=h)return;
+  CancelFocusReturn();gameFocus=h;typing=true;Show();WindowState=WindowState.Normal;Topmost=true;SetComposerVisible(true);FocusComposer();composer.CaretIndex=composer.Text.Length;
+ }
+ void FocusComposer(){
+  typing=true;ApplyActivationStyle();
+  if(!composerKeyboard.Acquire(new WindowInteropHelper(this).Handle)){ShowSendStatus("请点击输入框以开始输入");return;}
+  Activate();composer.Focus();Keyboard.Focus(composer);
  }
  void ToggleSendLanguage(){sendMode=sendMode=="zh"?"en":"zh";sendLanguage.Content=sendMode=="zh"?"中":"英";SaveSettings();if(composerPanel.Visibility==Visibility.Visible&&!composer.IsReadOnly){composer.Focus();Keyboard.Focus(composer);}}
  void SetComposerVisible(bool visible){
   composerPanel.Visibility=visible?Visibility.Visible:Visibility.Collapsed;
-  if(!visible){if(composer.IsKeyboardFocusWithin)Keyboard.ClearFocus();if(IsActive)Keyboard.Focus(this);typing=false;ApplyActivationStyle();}
+  if(!visible){imeComposing=false;composerKeyboard.Release();if(composer.IsKeyboardFocusWithin)Keyboard.ClearFocus();if(IsActive)Keyboard.Focus(this);typing=false;ApplyActivationStyle();}
   UpdateComposerLayout();
  }
  void UpdateComposerLayout(){
@@ -132,7 +152,20 @@ class ChatWindow : Window {
   following=stick;updating=false;
  }
  void ShowSendStatus(string text){sendStatus.Text=text;sendStatus.Visibility=string.IsNullOrEmpty(text)?Visibility.Collapsed:Visibility.Visible;UpdateComposerLayout();}
- void ReturnToGame(){if(gameFocus==IntPtr.Zero)return;var h=gameFocus;gameFocus=IntPtr.Zero;typing=false;ApplyActivationStyle();SetForegroundWindow(h);}
+ void CancelFocusReturn(){returningFocus=false;returnReleaseKey=Key.None;composerKeyboard.Release();}
+ void CloseComposerAndReturn(){SetComposerVisible(false);ReturnToGame();}
+ void ReturnToGame(){
+  if(gameFocus==IntPtr.Zero){composerKeyboard.Release();return;}
+  // Keep the closing Enter/Escape in this window until its actual key-up event,
+  // so held-key repeats cannot open native chat. Mouse submission returns now.
+  returningFocus=true;returnReleaseKey=inputEventKey;typing=true;ApplyActivationStyle();CompleteFocusReturn();
+ }
+ void CompleteFocusReturn(){
+  if(!returningFocus)return;
+  if(ComposerKeyboard.GetForegroundWindow()!=new WindowInteropHelper(this).Handle){CancelFocusReturn();gameFocus=IntPtr.Zero;return;}
+  if(returnReleaseKey!=Key.None)return;
+  var h=gameFocus;gameFocus=IntPtr.Zero;CancelFocusReturn();typing=false;ApplyActivationStyle();SetForegroundWindow(h);
+ }
  void FadeControls(bool visible){controlsHover.BeginAnimation(UIElement.OpacityProperty,new DoubleAnimation(visible?1:0,TimeSpan.FromMilliseconds(visible?160:280)));}
  void FadeScrollBar(bool visible){
   scroll.ApplyTemplate();var bar=scroll.Template.FindName("PART_VerticalScrollBar",scroll) as ScrollBar;if(bar==null)return;
@@ -141,13 +174,16 @@ class ChatWindow : Window {
  void SetShowOriginal(bool value){showOriginal=value;foreach(var row in rows.Values)row.ShowOriginal(value);if(following)Dispatcher.BeginInvoke(new Action(ToLatest),DispatcherPriority.Loaded);}
  void BeginSend(){
   if(pendingSend.Length>0)return;string text=composer.Text.Trim();
-  if(text.Length==0){composer.Clear();ShowSendStatus("");SetComposerVisible(false);ReturnToGame();return;}
+  if(text.Length==0){composer.Clear();ShowSendStatus("");CloseComposerAndReturn();return;}
   if(demo){ShowSendStatus("演示模式");return;}
   if(groupId.Length==0||!status.StartsWith("已连接 · ")||(DateTime.UtcNow-lastWrite).TotalSeconds>60){ShowSendStatus("频道未连接");return;}
+  SubmitSendRequest(text);
+ }
+ void SubmitSendRequest(string text){
   try{
    string id=Guid.NewGuid().ToString("N");var request=new Dictionary<string,object>{{"id",id},{"group_id",groupId},{"text",text},{"language",sendMode},{"created_at",(DateTime.UtcNow-new DateTime(1970,1,1)).TotalSeconds}};
    string path=DataPath("send-request.json"),temp=path+".tmp";if(File.Exists(path)){ShowSendStatus("上一条尚未处理");return;}
-   File.WriteAllText(temp,json.Serialize(request),new UTF8Encoding(false));File.Move(temp,path);pendingSend=id;sendButton.IsEnabled=false;composer.IsReadOnly=true;sendLanguage.IsEnabled=false;ShowSendStatus("发送中…");ReturnToGame();
+   File.WriteAllText(temp,json.Serialize(request),new UTF8Encoding(false));File.Move(temp,path);pendingSend=id;sendButton.IsEnabled=false;composer.IsReadOnly=true;sendLanguage.IsEnabled=false;ShowSendStatus("发送中…");CloseComposerAndReturn();
   }catch(IOException){ShowSendStatus("提交失败");}
  }
  void UpdateSendResult(){
@@ -155,7 +191,7 @@ class ChatWindow : Window {
   try{var result=json.Deserialize<Dictionary<string,object>>(File.ReadAllText(DataPath("send-result.json"),Encoding.UTF8));if(Str(result,"id")!=pendingSend)return;
    sendStatus.ToolTip=null;
    if(Bool(result,"ok")){composer.Clear();ShowSendStatus("");SetComposerVisible(false);}
-   else{SetComposerVisible(true);ShowSendStatus(Str(result,"message"));}
+   else{ShowSendStatus(Str(result,"message"));} // Never reopen or steal game focus for a background result.
    pendingSend="";sendButton.IsEnabled=true;composer.IsReadOnly=false;sendLanguage.IsEnabled=true;
   }catch(IOException){}catch(ArgumentException){}
  }
@@ -175,10 +211,11 @@ class ChatWindow : Window {
   menu.Items.Add("退出",null,delegate{Dispatcher.BeginInvoke(new Action(ExitApplication));});
   tray.ContextMenuStrip=menu;tray.DoubleClick+=delegate{Dispatcher.BeginInvoke(new Action(ShowOverlay));};tray.Visible=true;
  }
- void HideToTray(){if(settingsWindow!=null)settingsWindow.Close();scrollBarTimer.Stop();FadeScrollBar(false);SetComposerVisible(false);SaveSettings();Hide();}
+ void HideToTray(){CancelFocusReturn();gameFocus=IntPtr.Zero;if(settingsWindow!=null)settingsWindow.Close();scrollBarTimer.Stop();FadeScrollBar(false);SetComposerVisible(false);SaveSettings();Hide();}
  void ShowOverlay(){Show();WindowState=WindowState.Normal;Topmost=true;if(!locked){ApplyActivationStyle();Activate();}}
  void ExitApplication(){exiting=true;Close();}
  IntPtr WindowMessage(IntPtr hwnd,int msg,IntPtr wParam,IntPtr lParam,ref bool handled){
+  if(msg==0x0101||msg==0x0105)composerKeyboard.Refresh(); // Alt releases the OS foreground lock; re-arm only while still active.
   // Keep lock clicks functional without stealing game focus. Unlock restores normal activation.
   if(msg==0x0021){if(composerPanel!=null&&composerPanel.IsMouseOver){typing=true;ApplyActivationStyle();}handled=true;return new IntPtr(locked&&!typing?3:1);}
   return IntPtr.Zero;
